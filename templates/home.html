@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eDNA Biodiversity Analysis Prototype</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <!-- Topbar -->
+    <div class="absolute top-4 right-8 flex items-center gap-4 z-20">
+        <span class="text-sm text-gray-600">Welcome, <b>{{ username }}</b></span>
+        <form id="logout-form" method="post" action="/api/logout">
+            <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">Logout</button>
+        </form>
+    </div>
+    <!-- Main Card -->
+    <div class="max-w-4xl w-full bg-white shadow-lg rounded-lg p-8 mt-20">
+        <!-- Header -->
+        <h1 class="text-3xl font-bold text-center mb-6">eDNA Biodiversity Analysis Pipeline</h1>
+        <p class="text-center text-gray-600 mb-8">Upload raw sequencing data (.fastq or .fasta) to analyze taxonomy and biodiversity using AI-driven unsupervised learning.</p>
+
+        <!-- Upload Section -->
+        <div id="upload-section" class="text-center">
+            <label for="file-upload" class="cursor-pointer bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition">
+                Simulate File Upload
+            </label>
+            <input id="file-upload" type="file" class="hidden" accept=".fastq,.fasta">
+            <p class="mt-4 text-gray-500">Click to select a file (simulation only; no actual upload processed).</p>
+        </div>
+
+        <!-- Progress Section (Hidden initially) -->
+        <div id="progress-section" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4">Analysis in Progress</h2>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%;"></div>
+            </div>
+            <div id="log" class="bg-gray-100 p-4 rounded-lg h-40 overflow-y-auto text-sm text-gray-700"></div>
+        </div>
+
+        <!-- Results Dashboard (Hidden initially) -->
+        <div id="results-section" class="hidden">
+            <h2 class="text-2xl font-semibold mb-6">Analysis Results</h2>
+            <!-- Summary Metrics -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="bg-blue-100 p-4 rounded-lg text-center">
+                    <h3 class="font-medium text-lg">Identified Taxa Count</h3>
+                    <p id="identified-count" class="text-2xl font-bold"></p>
+                </div>
+                <div class="bg-green-100 p-4 rounded-lg text-center">
+                    <h3 class="font-medium text-lg">Novel Taxa Count</h3>
+                    <p id="novel-count" class="text-2xl font-bold"></p>
+                </div>
+                <div class="bg-purple-100 p-4 rounded-lg text-center">
+                    <h3 class="font-medium text-lg">Shannon Diversity Index</h3>
+                    <p id="shannon-index" class="text-2xl font-bold"></p>
+                </div>
+            </div>
+            <!-- Abundance Chart -->
+            <div class="mb-8">
+                <h3 class="text-xl font-semibold mb-4">Relative Abundance of Top Taxa</h3>
+                <canvas id="abundance-chart" height="200"></canvas>
+            </div>
+            <!-- Detailed Table -->
+            <div>
+                <h3 class="text-xl font-semibold mb-4">Detailed Taxa Table</h3>
+                <input id="table-search" type="text" placeholder="Search taxa..." class="w-full p-2 mb-4 border rounded-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="p-2 text-left">Taxon ID</th>
+                                <th class="p-2 text-left">Classification</th>
+                                <th class="p-2 text-left">Abundance (Reads)</th>
+                                <th class="p-2 text-left">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taxa-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Restart Button -->
+            <div class="text-center mt-8">
+                <button id="restart-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-semibold transition">Restart Simulation</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Handle logout
+        document.getElementById('logout-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        });
+
+        // Mock Data
+        const mockData = [
+            { taxonId: 'T001', classification: 'Proteobacteria', abundance: 1200, type: 'Identified' },
+            { taxonId: 'T002', classification: 'Bacteroidetes', abundance: 950, type: 'Identified' },
+            { taxonId: 'T003', classification: 'Novel Cluster A', abundance: 800, type: 'Novel' },
+            { taxonId: 'T004', classification: 'Actinobacteria', abundance: 700, type: 'Identified' },
+            { taxonId: 'T005', classification: 'Novel Cluster B', abundance: 650, type: 'Novel' },
+            { taxonId: 'T006', classification: 'Firmicutes', abundance: 500, type: 'Identified' },
+            { taxonId: 'T007', classification: 'Novel Cluster C', abundance: 450, type: 'Novel' },
+            { taxonId: 'T008', classification: 'Cyanobacteria', abundance: 400, type: 'Identified' },
+            { taxonId: 'T009', classification: 'Novel Cluster D', abundance: 350, type: 'Novel' },
+            { taxonId: 'T010', classification: 'Verrucomicrobia', abundance: 300, type: 'Identified' },
+            { taxonId: 'T011', classification: 'Novel Cluster E', abundance: 250, type: 'Novel' },
+            { taxonId: 'T012', classification: 'Planctomycetes', abundance: 200, type: 'Identified' },
+            { taxonId: 'T013', classification: 'Novel Cluster F', abundance: 150, type: 'Novel' },
+            { taxonId: 'T014', classification: 'Chloroflexi', abundance: 100, type: 'Identified' },
+            { taxonId: 'T015', classification: 'Novel Cluster G', abundance: 80, type: 'Novel' }
+        ];
+
+        // Simulation metrics
+        let identifiedCount, novelCount, totalAbundance, proportions, shannonIndex;
+        function calcMetrics() {
+            identifiedCount = mockData.filter(d => d.type === 'Identified').length;
+            novelCount = mockData.filter(d => d.type === 'Novel').length;
+            totalAbundance = mockData.reduce((sum, d) => sum + d.abundance, 0);
+            proportions = mockData.map(d => d.abundance / totalAbundance);
+            shannonIndex = -proportions.reduce((sum, p) => sum + p * Math.log(p), 0).toFixed(2);
+        }
+        calcMetrics();
+
+        const stages = [
+            'Denoising & Filtering Reads',
+            'AI-Driven Unsupervised Clustering (Identifying Novel Taxa)',
+            'Estimating Abundance & Biodiversity Metrics'
+        ];
+
+        function appendLog(message) {
+            const log = document.getElementById('log');
+            log.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearDashboard() {
+            document.getElementById('identified-count').textContent = "";
+            document.getElementById('novel-count').textContent = "";
+            document.getElementById('shannon-index').textContent = "";
+            document.getElementById('taxa-table-body').innerHTML = "";
+            document.getElementById('table-search').value = "";
+            const chartArea = document.getElementById('abundance-chart').getContext('2d');
+            if (window.abundanceChart) {
+                window.abundanceChart.destroy();
+            }
+        }
+
+        function simulateAnalysis() {
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('progress-section').classList.remove('hidden');
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('log').innerHTML = "";
+
+            let progress = 0;
+            const progressBar = document.getElementById('progress-bar');
+            appendLog('Starting analysis...');
+
+            stages.forEach((stage, index) => {
+                setTimeout(() => {
+                    appendLog(`Processing: ${stage}`);
+                    progress = ((index + 1) / stages.length) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    if (index === stages.length - 1) {
+                        setTimeout(showResults, 1000);
+                    }
+                }, (index + 1) * 2000);
+            });
+        }
+
+        function showResults() {
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+            calcMetrics();
+
+            // Populate summary
+            document.getElementById('identified-count').textContent = identifiedCount;
+            document.getElementById('novel-count').textContent = novelCount;
+            document.getElementById('shannon-index').textContent = shannonIndex;
+
+            // Populate table
+            const tableBody = document.getElementById('taxa-table-body');
+            tableBody.innerHTML = "";
+            mockData.forEach(data => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 border">${data.taxonId}</td>
+                    <td class="p-2 border">${data.classification}</td>
+                    <td class="p-2 border">${data.abundance}</td>
+                    <td class="p-2 border ${data.type === 'Novel' ? 'text-red-500 font-bold' : ''}">${data.type}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // Table search
+            const searchInput = document.getElementById('table-search');
+            searchInput.oninput = function () {
+                const filter = searchInput.value.toLowerCase();
+                Array.from(tableBody.rows).forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(filter) ? '' : 'none';
+                });
+            };
+
+            // Chart
+            const chartData = mockData.slice(0, 10);
+            const ctx = document.getElementById('abundance-chart').getContext('2d');
+            if (window.abundanceChart) window.abundanceChart.destroy();
+            window.abundanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(d => d.classification),
+                    datasets: [{
+                        label: 'Relative Abundance',
+                        data: chartData.map(d => (d.abundance / totalAbundance * 100).toFixed(2)),
+                        backgroundColor: chartData.map(d => d.type === 'Novel' ? 'rgba(255, 99, 132, 0.7)' : 'rgba(54, 162, 235, 0.7)'),
+                        borderColor: chartData.map(d => d.type === 'Novel' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Percentage (%)' } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.label}: ${context.raw}% (${chartData[context.dataIndex].abundance} reads)`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('file-upload').addEventListener('change', simulateAnalysis);
+
+        // Restart simulation button
+        document.getElementById('restart-btn').addEventListener('click', function () {
+            clearDashboard();
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('upload-section').classList.remove('hidden');
+        });
+
+    </script>
+</body>
+</html>
