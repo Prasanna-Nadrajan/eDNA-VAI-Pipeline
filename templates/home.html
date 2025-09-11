@@ -28,10 +28,10 @@
         <!-- Upload Section -->
         <div id="upload-section" class="text-center">
             <label for="file-upload" class="cursor-pointer bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition">
-                Simulate File Upload
+                Start Analysis
             </label>
             <input id="file-upload" type="file" class="hidden" accept=".fastq,.fasta">
-            <p class="mt-4 text-gray-500">Click to select a file (simulation only; no actual upload processed).</p>
+            <p class="mt-4 text-gray-500">Click to start the analysis pipeline.</p>
         </div>
 
         <!-- Progress Section (Hidden initially) -->
@@ -66,6 +66,18 @@
                 <h3 class="text-xl font-semibold mb-4">Relative Abundance of Top Taxa</h3>
                 <canvas id="abundance-chart" height="200"></canvas>
             </div>
+            <!-- Visualizations -->
+            <div class="mb-8">
+                <h3 class="text-xl font-semibold mb-4">Key Visualizations</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-2 border rounded-lg shadow-sm">
+                        <img id="latent-space-plot" src="" alt="VAE Latent Space Plot" class="w-full h-auto rounded-lg">
+                    </div>
+                    <div class="p-2 border rounded-lg shadow-sm">
+                        <img id="kmer-heatmap-plot" src="" alt="K-mer Heatmap" class="w-full h-auto rounded-lg">
+                    </div>
+                </div>
+            </div>
             <!-- Detailed Table -->
             <div>
                 <h3 class="text-xl font-semibold mb-4">Detailed Taxa Table</h3>
@@ -86,7 +98,7 @@
             </div>
             <!-- Restart Button -->
             <div class="text-center mt-8">
-                <button id="restart-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-semibold transition">Restart Simulation</button>
+                <button id="restart-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-semibold transition">Restart Analysis</button>
             </div>
         </div>
     </div>
@@ -98,42 +110,14 @@
             window.location.href = '/';
         });
 
-        // Mock Data
-        const mockData = [
-            { taxonId: 'T001', classification: 'Proteobacteria', abundance: 1200, type: 'Identified' },
-            { taxonId: 'T002', classification: 'Bacteroidetes', abundance: 950, type: 'Identified' },
-            { taxonId: 'T003', classification: 'Novel Cluster A', abundance: 800, type: 'Novel' },
-            { taxonId: 'T004', classification: 'Actinobacteria', abundance: 700, type: 'Identified' },
-            { taxonId: 'T005', classification: 'Novel Cluster B', abundance: 650, type: 'Novel' },
-            { taxonId: 'T006', classification: 'Firmicutes', abundance: 500, type: 'Identified' },
-            { taxonId: 'T007', classification: 'Novel Cluster C', abundance: 450, type: 'Novel' },
-            { taxonId: 'T008', classification: 'Cyanobacteria', abundance: 400, type: 'Identified' },
-            { taxonId: 'T009', classification: 'Novel Cluster D', abundance: 350, type: 'Novel' },
-            { taxonId: 'T010', classification: 'Verrucomicrobia', abundance: 300, type: 'Identified' },
-            { taxonId: 'T011', classification: 'Novel Cluster E', abundance: 250, type: 'Novel' },
-            { taxonId: 'T012', classification: 'Planctomycetes', abundance: 200, type: 'Identified' },
-            { taxonId: 'T013', classification: 'Novel Cluster F', abundance: 150, type: 'Novel' },
-            { taxonId: 'T014', classification: 'Chloroflexi', abundance: 100, type: 'Identified' },
-            { taxonId: 'T015', classification: 'Novel Cluster G', abundance: 80, type: 'Novel' }
-        ];
-
-        // Simulation metrics
-        let identifiedCount, novelCount, totalAbundance, proportions, shannonIndex;
-        function calcMetrics() {
-            identifiedCount = mockData.filter(d => d.type === 'Identified').length;
-            novelCount = mockData.filter(d => d.type === 'Novel').length;
-            totalAbundance = mockData.reduce((sum, d) => sum + d.abundance, 0);
-            proportions = mockData.map(d => d.abundance / totalAbundance);
-            shannonIndex = -proportions.reduce((sum, p) => sum + p * Math.log(p), 0).toFixed(2);
-        }
-        calcMetrics();
-
         const stages = [
-            'Denoising & Filtering Reads',
-            'AI-Driven Unsupervised Clustering (Identifying Novel Taxa)',
-            'Estimating Abundance & Biodiversity Metrics'
+            'Simulating File Upload...',
+            'Sending request to backend...',
+            'Analysis in progress...',
+            'Generating visualizations...',
+            'Analysis completed.'
         ];
-
+        
         function appendLog(message) {
             const log = document.getElementById('log');
             log.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
@@ -146,54 +130,70 @@
             document.getElementById('shannon-index').textContent = "";
             document.getElementById('taxa-table-body').innerHTML = "";
             document.getElementById('table-search').value = "";
+            document.getElementById('latent-space-plot').src = "";
+            document.getElementById('kmer-heatmap-plot').src = "";
             const chartArea = document.getElementById('abundance-chart').getContext('2d');
             if (window.abundanceChart) {
                 window.abundanceChart.destroy();
             }
         }
 
-        function simulateAnalysis() {
+        async function startAnalysis() {
             document.getElementById('upload-section').classList.add('hidden');
             document.getElementById('progress-section').classList.remove('hidden');
             document.getElementById('results-section').classList.add('hidden');
             document.getElementById('log').innerHTML = "";
+            clearDashboard();
 
             let progress = 0;
             const progressBar = document.getElementById('progress-bar');
-            appendLog('Starting analysis...');
-
+            
+            // Step 1: Simulate progress and send request
             stages.forEach((stage, index) => {
                 setTimeout(() => {
-                    appendLog(`Processing: ${stage}`);
+                    appendLog(stage);
                     progress = ((index + 1) / stages.length) * 100;
                     progressBar.style.width = `${progress}%`;
-                    if (index === stages.length - 1) {
-                        setTimeout(showResults, 1000);
-                    }
-                }, (index + 1) * 2000);
+                }, (index) * 1000);
             });
+            
+            try {
+                const response = await fetch('/api/analyze', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    setTimeout(() => showResults(data), 1000);
+                } else {
+                    appendLog(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                appendLog(`An error occurred: ${error.message}`);
+            }
         }
-
-        function showResults() {
+        
+        function showResults(data) {
             document.getElementById('progress-section').classList.add('hidden');
             document.getElementById('results-section').classList.remove('hidden');
-            calcMetrics();
+
+            const summary = data.taxonomic_summary;
+            const metrics = data.biodiversity_metrics;
+            const taxaDetails = data.taxa_details;
 
             // Populate summary
-            document.getElementById('identified-count').textContent = identifiedCount;
-            document.getElementById('novel-count').textContent = novelCount;
-            document.getElementById('shannon-index').textContent = shannonIndex;
-
+            document.getElementById('identified-count').textContent = summary.identified_taxa;
+            document.getElementById('novel-count').textContent = summary.novel_taxa;
+            document.getElementById('shannon-index').textContent = metrics.shannon_diversity_index.toFixed(2);
+            
             // Populate table
             const tableBody = document.getElementById('taxa-table-body');
             tableBody.innerHTML = "";
-            mockData.forEach(data => {
+            taxaDetails.forEach(taxon => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="p-2 border">${data.taxonId}</td>
-                    <td class="p-2 border">${data.classification}</td>
-                    <td class="p-2 border">${data.abundance}</td>
-                    <td class="p-2 border ${data.type === 'Novel' ? 'text-red-500 font-bold' : ''}">${data.type}</td>
+                    <td class="p-2 border">${taxon.cluster_id}</td>
+                    <td class="p-2 border">${taxon.taxon_name}</td>
+                    <td class="p-2 border">${taxon.abundance}</td>
+                    <td class="p-2 border ${taxon.status === 'Novel' ? 'text-red-500 font-bold' : ''}">${taxon.status}</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -208,19 +208,20 @@
                 });
             };
 
-            // Chart
-            const chartData = mockData.slice(0, 10);
+            // Abundance Chart
+            const topTaxa = taxaDetails.slice(0, 10);
+            const totalAbundance = taxaDetails.reduce((sum, d) => sum + d.abundance, 0);
             const ctx = document.getElementById('abundance-chart').getContext('2d');
             if (window.abundanceChart) window.abundanceChart.destroy();
             window.abundanceChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: chartData.map(d => d.classification),
+                    labels: topTaxa.map(d => d.taxon_name),
                     datasets: [{
                         label: 'Relative Abundance',
-                        data: chartData.map(d => (d.abundance / totalAbundance * 100).toFixed(2)),
-                        backgroundColor: chartData.map(d => d.type === 'Novel' ? 'rgba(255, 99, 132, 0.7)' : 'rgba(54, 162, 235, 0.7)'),
-                        borderColor: chartData.map(d => d.type === 'Novel' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)'),
+                        data: topTaxa.map(d => ((d.abundance / totalAbundance) * 100).toFixed(2)),
+                        backgroundColor: topTaxa.map(d => d.status === 'Novel' ? 'rgba(255, 99, 132, 0.7)' : 'rgba(54, 162, 235, 0.7)'),
+                        borderColor: topTaxa.map(d => d.status === 'Novel' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)'),
                         borderWidth: 1
                     }]
                 },
@@ -231,15 +232,19 @@
                     plugins: {
                         tooltip: {
                             callbacks: {
-                                label: (context) => `${context.label}: ${context.raw}% (${chartData[context.dataIndex].abundance} reads)`
+                                label: (context) => `${context.label}: ${context.raw}% (${topTaxa[context.dataIndex].abundance} reads)`
                             }
                         }
                     }
                 }
             });
+            
+            // Update image sources
+            document.getElementById('latent-space-plot').src = "/plots/latent_space_clusters.png";
+            document.getElementById('kmer-heatmap-plot').src = "/plots/kmer_heatmap.png";
         }
 
-        document.getElementById('file-upload').addEventListener('change', simulateAnalysis);
+        document.getElementById('file-upload').addEventListener('change', startAnalysis);
 
         // Restart simulation button
         document.getElementById('restart-btn').addEventListener('click', function () {
