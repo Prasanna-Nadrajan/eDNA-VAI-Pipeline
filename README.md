@@ -1,121 +1,124 @@
-# 🧬 eDNA-AI-Biodiversity  
-### AI-Driven Deep-Sea Biodiversity Assessment from Environmental DNA (eDNA)
+# 🧬 AI-Driven Deep-Sea eDNA Biodiversity Assessment
 
-An innovative AI-first pipeline for analyzing deep-sea eDNA to accurately assess biodiversity and discover novel taxa. This project overcomes the limitations of traditional bioinformatics by leveraging unsupervised deep learning, minimizing reliance on incomplete reference databases.
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen)](https://edna-biodiversity-pipeline-production.up.railway.app)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.10+-orange.svg)](https://www.tensorflow.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
----
+An innovative, database-independent AI pipeline for assessing biodiversity in deep-sea ecosystems using environmental DNA (eDNA).
 
-## 🚨 Problem Statement
+## � Overview
 
-The Centre for Marine Living Resources and Ecology (CMLRE) collects eDNA samples from remote deep-sea ecosystems. Traditional tools like **BLAST** and **QIIME2** rely heavily on reference databases (e.g., NCBI), which lack comprehensive genetic sequences for deep-sea organisms. This leads to:
+The Centre for Marine Living Resources and Ecology (CMLRE) collects eDNA samples from remote deep-sea ecosystems. Traditional bioinformatics tools (like BLAST) rely heavily on reference databases, which lack comprehensive genetic sequences for deep-sea organisms. This leads to misclassified reads and a significant underestimation of biodiversity.
 
-- ❌ Misclassified or unassigned genetic reads  
-- 📉 Significant underestimation of biodiversity
-
-> 🔍 **Key Finding:**  
-> The provided `.tar.gz` and `.sqlite3` files were static BLAST databases—not raw sequencing data—highlighting the limitations of traditional reference-based methods.
+**Our Solution**: An AI-first pipeline that leverages **unsupervised deep learning** to analyze genetic patterns directly, allowing for the identification of distinct taxa and the discovery of novel species without needing prior cataloging.
 
 ---
 
-## 💡 Our Solution: A Paradigm Shift
+## ⚙️ Architecture & Workflow
 
-We introduce a novel, AI-driven pipeline that operates independently of reference databases. The core is built using **TensorFlow** and **Scikit-learn**, enabling unsupervised learning and discovery of novel taxa.
+The system follows a streamlined 4-stage pipeline:
 
----
+### 1. 📥 Data Ingestion
+*   **Input**: Raw `.fasta` or `.fastq` sequencing files.
+*   **Process**: reads DNA sequences (A, T, C, G) and filters quality.
 
-## ⚙️ Technical Workflow
+### 2. � Vectorization (K-mer Encoding)
+*   **Method**: Converts biological sequences into numerical vectors using **k-mer frequency analysis** (default k=4).
+*   **Output**: A high-dimensional numerical matrix representing the genetic signature of each sequence.
 
-### 1. 🔄 Data Pre-processing
-- Convert raw eDNA reads (~200bp) into numerical **k-mer frequency vectors**
-- Transforms genetic sequences into neural-network-compatible format
+### 3. 🧠 AI Analysis (The Core)
+*   **Variational Autoencoder (VAE)**: A deep neural network compresses the sparse k-mer vectors into a dense, continuous **latent space**. This captures the intrinsic structure of the genetic data.
+*   **DBSCAN Clustering**: A density-based clustering algorithm groups the latent embeddings.
+    *   **Dense Clusters** = Identified Taxa (Species/Genus)
+    *   **Outliers/Noise** = **Potentially Novel Taxa** (Unknown to science)
 
-### 2. 🧠 Unsupervised Deep Learning
-- Implement a **Variational Autoencoder (VAE)** using TensorFlow
-- Learns intrinsic genetic patterns and embeds sequences into a lower-dimensional space
-
-### 3. 🧬 Clustering & Discovery
-- Use **DBSCAN** to:
-  - Group similar sequences into distinct taxa
-  - Detect outliers as **"noise" or novel taxa**
-
----
-
-## 📊 Team Progress
-
-| Module                        | Completion |
-|------------------------------|------------|
-| Research & Problem Validation| ✅ 100%     |
-| Core AI Model Development    | 🔧 90%      |
-| Backend Functional Prototype | 🔧 20%      |
-| Frontend Design & UI/UX      | 🎨 20%      |
+### 4. 📊 Visualization & Metrics
+*   **Latent Space Projection**: Visualizes the clusters using PCA (2D).
+*   **K-mer Heatmaps**: Shows the frequency of dominant genetic patterns.
+*   **Biodiversity Indices**: Automatically calculates Shannon, Simpson, and Pielou's evenness indices.
 
 ---
 
-## 🧪 Under Development
+## ✨ Key Features
 
-### 🔙 Backend (`ai_pipeline.py`)
-- Finalizing API endpoint for real-time data transfer
-- Implements full AI pipeline: mock data → VAE → DBSCAN → JSON output
-
-### 🔜 Frontend (`index.html`)
-- Single-file dashboard with:
-  - Interactive charts
-  - Searchable table of identified and novel taxa
-  - Dynamic API integration
+*   **Database-Independent**: Does not require reference databases like NCBI/GenBank.
+*   **Novel Taxa Discovery**: Specifically designed to highlight genetic outliers that could be new species.
+*   **Interactive Web Dashboard**: User-friendly interface to upload files and visualize analysis in real-time.
+*   **Production-Ready**: Deployed and scalable using Flask and Gunicorn.
 
 ---
 
-## 🚀 Prototype & Demonstration
+## 🏗️ Tech Stack
 
-### ✅ `ai_pipeline.py`
-- Simulates the full pipeline
-- Outputs structured JSON with identified and novel taxa
-
-### ✅ `index.html`
-- Visualizes results with biodiversity metrics and abundance charts
+*   **Frontend**: HTML5, TailwindCSS, Chart.js
+*   **Backend**: Python, Flask, Werkzeug
+*   **Machine Learning**: TensorFlow (Keras), Scikit-learn, NumPy, Pandas
+*   **Visualization**: Matplotlib, Seaborn
+*   **Deployment**: Railway, Gunicorn
 
 ---
 
-## 🧰 Getting Started
+## � Installation & Usage
 
-### 🔧 Dependencies
+### Prerequisites
+*   Python 3.8+
+*   pip
 
-Install required packages via pip:
+### Local Setup
 
-```bash
-pip install numpy pandas scikit-learn tensorflow
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/Prasanna-Nadrajan/eDNA-VAI-Pipeline.git
+    cd eDNA-VAI-Pipeline
+    ```
+
+2.  **Create a Virtual Environment**
+    ```bash
+    python -m venv venv
+    # Windows
+    .\venv\Scripts\activate
+    # Mac/Linux
+    source venv/bin/activate
+    ```
+
+3.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Run the Application**
+    ```bash
+    python app.py
+    ```
+
+5.  **Access the Dashboard**
+    Open your browser and navigate to: `http://127.0.0.1:5000`
+
+### Login Credentials (Demo)
+*   **Admin**: `admin` / `password`
+*   **User**: `alice` / `wonderland123`
+
+---
+
+## � Project Structure
+
 ```
-
-### ▶️ Run the Pipeline
-
-```bash
-python ai_pipeline.py
+├── app.py                 # Main Flask application entry point
+├── main.py                # AI Pipeline logic (VAE, Clustering, Metrics)
+├── sample.fasta           # Included sample dataset (50 sequences)
+├── requirements.txt       # Python dependencies
+├── Procfile               # Production startup command
+├── railway.toml           # Cloud deployment config
+├── templates/             # HTML Templates
+│   ├── home.html          # Analysis dashboard
+│   └── login.html         # Login page
+└── plots/                 # Directory for generated visualizations
 ```
-
-This will print the complete analysis results (identified + novel taxa) in JSON format to your console.
-
----
-
-## 📁 Repository Structure
-
-```
-├── ai_pipeline.py       # Backend logic with VAE + DBSCAN
-├── index.html           # Frontend dashboard
-├── README.md            # Project documentation
-└── requirements.txt     # (Optional) Dependency list
-```
-
----
-
-## 🌊 Impact
-
-This project redefines biodiversity assessment in deep-sea ecosystems by:
-- Eliminating dependency on incomplete reference databases
-- Enabling discovery of previously unknown taxa
-- Providing a scalable, full-stack AI solution for marine ecology
-
----
 
 ## 🤝 Acknowledgments
 
-Special thanks to **CMLRE** for providing the dataset and research context. This project is part of the **Smart India Hackathon (SIH)** initiative to solve real-world scientific challenges using cutting-edge technology.
+Special thanks to **CMLRE** for the inspiration and problem statement regarding deep-sea conservation. This project was developed to address real-world challenges in marine biodiversity assessment.
+
+---
+*License: MIT*
