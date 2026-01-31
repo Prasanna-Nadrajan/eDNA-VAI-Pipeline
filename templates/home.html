@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,88 +9,170 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(17, 153, 142, 0.3);
+        }
+
+        .file-info {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
+
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
     <!-- Topbar -->
     <div class="absolute top-4 right-8 flex items-center gap-4 z-20">
         <span class="text-sm text-gray-600">Welcome, <b>{{ username }}</b></span>
         <form id="logout-form" method="post" action="/api/logout">
-            <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">Logout</button>
+            <button type="submit"
+                class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">Logout</button>
         </form>
     </div>
     <!-- Main Card -->
     <div class="max-w-4xl w-full bg-white shadow-lg rounded-lg p-8 mt-20">
         <!-- Header -->
-        <h1 class="text-3xl font-bold text-center mb-6">eDNA Biodiversity Analysis Pipeline</h1>
-        <p class="text-center text-gray-600 mb-8">Upload raw sequencing data (.fastq or .fasta) to analyze taxonomy and biodiversity using AI-driven unsupervised learning.</p>
+        <h1 class="text-3xl font-bold text-center mb-4">🧬 eDNA Biodiversity Analysis Pipeline</h1>
+        <p class="text-center text-gray-600 mb-8">Upload raw sequencing data (.fasta or .fastq) to analyze taxonomy and
+            biodiversity using AI-driven unsupervised learning.</p>
 
         <!-- Upload Section -->
         <div id="upload-section" class="text-center">
-            <label for="file-upload" class="cursor-pointer bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition">
-                Start Analysis
-            </label>
-            <input id="file-upload" type="file" class="hidden" accept=".fastq,.fasta">
-            <p class="mt-4 text-gray-500">Click to start the analysis pipeline.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+                <!-- Upload File Button -->
+                <div class="flex flex-col items-center">
+                    <label for="file-upload"
+                        class="btn-primary cursor-pointer text-white py-3 px-6 rounded-lg font-semibold">
+                        📁 Upload FASTA File
+                    </label>
+                    <input id="file-upload" type="file" class="hidden" accept=".fasta,.fa,.fna,.fastq,.fq">
+                </div>
+
+                <!-- OR Divider -->
+                <div class="flex items-center justify-center">
+                    <span class="text-gray-400 font-medium">OR</span>
+                </div>
+
+                <!-- Use Sample Button -->
+                <div class="flex flex-col items-center">
+                    <button id="sample-btn" class="btn-secondary text-white py-3 px-6 rounded-lg font-semibold">
+                        🧪 Use Sample FASTA File
+                    </button>
+                </div>
+            </div>
+
+            <!-- File Info Display -->
+            <div id="file-info" class="hidden file-info mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span class="text-blue-700 font-medium" id="file-name"></span>
+                <button id="clear-file" class="ml-3 text-red-500 hover:text-red-700 text-sm">✕ Clear</button>
+            </div>
+
+            <!-- Start Analysis Button (shown after file selection) -->
+            <button id="start-analysis-btn"
+                class="hidden mt-4 bg-purple-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-purple-700 transition">
+                🚀 Start Analysis
+            </button>
+
+            <p class="mt-4 text-gray-500 text-sm">Supported formats: .fasta, .fa, .fna, .fastq, .fq (max 50MB)</p>
         </div>
 
         <!-- Progress Section (Hidden initially) -->
         <div id="progress-section" class="hidden">
-            <h2 class="text-2xl font-semibold mb-4">Analysis in Progress</h2>
+            <h2 class="text-2xl font-semibold mb-4">⏳ Analysis in Progress</h2>
             <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%;"></div>
+                <div id="progress-bar"
+                    class="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full transition-all duration-500"
+                    style="width: 0%;"></div>
             </div>
-            <div id="log" class="bg-gray-100 p-4 rounded-lg h-40 overflow-y-auto text-sm text-gray-700"></div>
+            <div id="log" class="bg-gray-100 p-4 rounded-lg h-48 overflow-y-auto text-sm text-gray-700 font-mono"></div>
         </div>
 
         <!-- Results Dashboard (Hidden initially) -->
         <div id="results-section" class="hidden">
-            <h2 class="text-2xl font-semibold mb-6">Analysis Results</h2>
+            <h2 class="text-2xl font-semibold mb-6">📊 Analysis Results</h2>
             <!-- Summary Metrics -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 <div class="bg-blue-100 p-4 rounded-lg text-center">
-                    <h3 class="font-medium text-lg">Identified Taxa Count</h3>
-                    <p id="identified-count" class="text-2xl font-bold"></p>
+                    <h3 class="font-medium text-sm text-blue-800">Total Sequences</h3>
+                    <p id="total-sequences" class="text-2xl font-bold text-blue-700"></p>
                 </div>
                 <div class="bg-green-100 p-4 rounded-lg text-center">
-                    <h3 class="font-medium text-lg">Novel Taxa Count</h3>
-                    <p id="novel-count" class="text-2xl font-bold"></p>
+                    <h3 class="font-medium text-sm text-green-800">Identified Taxa</h3>
+                    <p id="identified-count" class="text-2xl font-bold text-green-700"></p>
+                </div>
+                <div class="bg-orange-100 p-4 rounded-lg text-center">
+                    <h3 class="font-medium text-sm text-orange-800">Novel Taxa</h3>
+                    <p id="novel-count" class="text-2xl font-bold text-orange-700"></p>
                 </div>
                 <div class="bg-purple-100 p-4 rounded-lg text-center">
-                    <h3 class="font-medium text-lg">Shannon Diversity Index</h3>
-                    <p id="shannon-index" class="text-2xl font-bold"></p>
+                    <h3 class="font-medium text-sm text-purple-800">Shannon Diversity</h3>
+                    <p id="shannon-index" class="text-2xl font-bold text-purple-700"></p>
                 </div>
             </div>
             <!-- Abundance Chart -->
             <div class="mb-8">
-                <h3 class="text-xl font-semibold mb-4">Relative Abundance of Top Taxa</h3>
+                <h3 class="text-xl font-semibold mb-4">📈 Relative Abundance of Top Taxa</h3>
                 <canvas id="abundance-chart" height="200"></canvas>
             </div>
             <!-- Visualizations -->
             <div class="mb-8">
-                <h3 class="text-xl font-semibold mb-4">Key Visualizations</h3>
+                <h3 class="text-xl font-semibold mb-4">🔬 AI-Generated Visualizations</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-2 border rounded-lg shadow-sm">
+                    <div class="p-2 border rounded-lg shadow-sm bg-white">
+                        <h4 class="text-center text-sm font-medium mb-2 text-gray-600">VAE Latent Space Clusters</h4>
                         <img id="latent-space-plot" src="" alt="VAE Latent Space Plot" class="w-full h-auto rounded-lg">
                     </div>
-                    <div class="p-2 border rounded-lg shadow-sm">
+                    <div class="p-2 border rounded-lg shadow-sm bg-white">
+                        <h4 class="text-center text-sm font-medium mb-2 text-gray-600">K-mer Frequency Heatmap</h4>
                         <img id="kmer-heatmap-plot" src="" alt="K-mer Heatmap" class="w-full h-auto rounded-lg">
                     </div>
                 </div>
             </div>
             <!-- Detailed Table -->
             <div>
-                <h3 class="text-xl font-semibold mb-4">Detailed Taxa Table</h3>
-                <input id="table-search" type="text" placeholder="Search taxa..." class="w-full p-2 mb-4 border rounded-lg">
+                <h3 class="text-xl font-semibold mb-4">📋 Detailed Taxa Table</h3>
+                <input id="table-search" type="text" placeholder="Search taxa..."
+                    class="w-full p-2 mb-4 border rounded-lg">
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse">
                         <thead>
                             <tr class="bg-gray-200">
-                                <th class="p-2 text-left">Taxon ID</th>
-                                <th class="p-2 text-left">Classification</th>
-                                <th class="p-2 text-left">Abundance (Reads)</th>
-                                <th class="p-2 text-left">Type</th>
+                                <th class="p-2 text-left">Cluster ID</th>
+                                <th class="p-2 text-left">Taxon Name</th>
+                                <th class="p-2 text-left">Abundance</th>
+                                <th class="p-2 text-left">Status</th>
+                                <th class="p-2 text-left">Confidence</th>
                             </tr>
                         </thead>
                         <tbody id="taxa-table-body"></tbody>
@@ -98,33 +181,45 @@
             </div>
             <!-- Restart Button -->
             <div class="text-center mt-8">
-                <button id="restart-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-semibold transition">Restart Analysis</button>
+                <button id="restart-btn"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-semibold transition">🔄
+                    Run New Analysis</button>
             </div>
         </div>
     </div>
+
     <script>
+        // State
+        let selectedFile = null;
+        let useSample = false;
+
         // Handle logout
-        document.getElementById('logout-form').addEventListener('submit', async function(e) {
+        document.getElementById('logout-form').addEventListener('submit', async function (e) {
             e.preventDefault();
             await fetch('/api/logout', { method: 'POST' });
             window.location.href = '/';
         });
 
         const stages = [
-            'Simulating File Upload...',
-            'Sending request to backend...',
-            'Analysis in progress...',
-            'Generating visualizations...',
-            'Analysis completed.'
+            '📤 Uploading sequence data...',
+            '🔬 Parsing FASTA sequences...',
+            '🧮 Converting to k-mer vectors...',
+            '🧠 Training Variational Autoencoder...',
+            '📊 Performing DBSCAN clustering...',
+            '🎨 Generating visualizations...',
+            '📈 Calculating biodiversity metrics...',
+            '✅ Analysis completed!'
         ];
-        
+
         function appendLog(message) {
             const log = document.getElementById('log');
-            log.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `<p class="mb-1"><span class="text-gray-500">[${timestamp}]</span> ${message}</p>`;
             log.scrollTop = log.scrollHeight;
         }
 
         function clearDashboard() {
+            document.getElementById('total-sequences').textContent = "";
             document.getElementById('identified-count').textContent = "";
             document.getElementById('novel-count').textContent = "";
             document.getElementById('shannon-index').textContent = "";
@@ -132,11 +227,43 @@
             document.getElementById('table-search').value = "";
             document.getElementById('latent-space-plot').src = "";
             document.getElementById('kmer-heatmap-plot').src = "";
-            const chartArea = document.getElementById('abundance-chart').getContext('2d');
             if (window.abundanceChart) {
                 window.abundanceChart.destroy();
             }
         }
+
+        // File selection handler
+        document.getElementById('file-upload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                useSample = false;
+                document.getElementById('file-info').classList.remove('hidden');
+                document.getElementById('file-name').textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                document.getElementById('start-analysis-btn').classList.remove('hidden');
+            }
+        });
+
+        // Sample button handler
+        document.getElementById('sample-btn').addEventListener('click', function () {
+            selectedFile = null;
+            useSample = true;
+            document.getElementById('file-info').classList.remove('hidden');
+            document.getElementById('file-name').textContent = "Using: sample.fasta (50 deep-sea eDNA sequences)";
+            document.getElementById('start-analysis-btn').classList.remove('hidden');
+        });
+
+        // Clear file handler
+        document.getElementById('clear-file').addEventListener('click', function () {
+            selectedFile = null;
+            useSample = false;
+            document.getElementById('file-upload').value = '';
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('start-analysis-btn').classList.add('hidden');
+        });
+
+        // Start analysis handler
+        document.getElementById('start-analysis-btn').addEventListener('click', startAnalysis);
 
         async function startAnalysis() {
             document.getElementById('upload-section').classList.add('hidden');
@@ -145,55 +272,80 @@
             document.getElementById('log').innerHTML = "";
             clearDashboard();
 
-            let progress = 0;
             const progressBar = document.getElementById('progress-bar');
-            
-            // Step 1: Simulate progress and send request
-            stages.forEach((stage, index) => {
-                setTimeout(() => {
-                    appendLog(stage);
-                    progress = ((index + 1) / stages.length) * 100;
-                    progressBar.style.width = `${progress}%`;
-                }, (index) * 1000);
-            });
-            
+
+            // Animate progress stages
+            for (let i = 0; i < stages.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                appendLog(stages[i]);
+                const progress = ((i + 1) / stages.length) * 70; // Up to 70% during stages
+                progressBar.style.width = `${progress}%`;
+            }
+
             try {
-                const response = await fetch('/api/analyze', { method: 'POST' });
+                // Build form data
+                const formData = new FormData();
+
+                if (useSample) {
+                    formData.append('use_sample', 'true');
+                    appendLog('📁 Using sample FASTA file...');
+                } else if (selectedFile) {
+                    formData.append('file', selectedFile);
+                    appendLog(`📁 Uploading ${selectedFile.name}...`);
+                }
+
+                progressBar.style.width = '80%';
+                appendLog('🔄 Sending to AI pipeline...');
+
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                progressBar.style.width = '90%';
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
-                    setTimeout(() => showResults(data), 1000);
+                    progressBar.style.width = '100%';
+                    appendLog('✨ Results received successfully!');
+                    setTimeout(() => showResults(data), 500);
                 } else {
-                    appendLog(`Error: ${data.error}`);
+                    appendLog(`❌ Error: ${data.error}`);
                 }
             } catch (error) {
-                appendLog(`An error occurred: ${error.message}`);
+                appendLog(`❌ An error occurred: ${error.message}`);
             }
         }
-        
+
         function showResults(data) {
             document.getElementById('progress-section').classList.add('hidden');
             document.getElementById('results-section').classList.remove('hidden');
 
             const summary = data.taxonomic_summary;
             const metrics = data.biodiversity_metrics;
+            const pipelineInfo = data.pipeline_info;
             const taxaDetails = data.taxa_details;
 
             // Populate summary
+            document.getElementById('total-sequences').textContent = pipelineInfo.total_sequences_analyzed.toLocaleString();
             document.getElementById('identified-count').textContent = summary.identified_taxa;
             document.getElementById('novel-count').textContent = summary.novel_taxa;
             document.getElementById('shannon-index').textContent = metrics.shannon_diversity_index.toFixed(2);
-            
+
             // Populate table
             const tableBody = document.getElementById('taxa-table-body');
             tableBody.innerHTML = "";
             taxaDetails.forEach(taxon => {
                 const row = document.createElement('tr');
+                const statusClass = taxon.status === 'Novel' ? 'text-orange-600 font-bold' : 'text-green-600';
+                const confidenceDisplay = taxon.status === 'Novel' ? '-' : `${(taxon.confidence * 100).toFixed(0)}%`;
                 row.innerHTML = `
                     <td class="p-2 border">${taxon.cluster_id}</td>
-                    <td class="p-2 border">${taxon.taxon_name}</td>
-                    <td class="p-2 border">${taxon.abundance}</td>
-                    <td class="p-2 border ${taxon.status === 'Novel' ? 'text-red-500 font-bold' : ''}">${taxon.status}</td>
+                    <td class="p-2 border font-medium">${taxon.taxon_name}</td>
+                    <td class="p-2 border">${taxon.abundance.toLocaleString()}</td>
+                    <td class="p-2 border ${statusClass}">${taxon.status}</td>
+                    <td class="p-2 border">${confidenceDisplay}</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -216,39 +368,44 @@
             window.abundanceChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: topTaxa.map(d => d.taxon_name),
+                    labels: topTaxa.map(d => d.taxon_name.length > 20 ? d.taxon_name.substring(0, 20) + '...' : d.taxon_name),
                     datasets: [{
-                        label: 'Relative Abundance',
+                        label: 'Relative Abundance (%)',
                         data: topTaxa.map(d => ((d.abundance / totalAbundance) * 100).toFixed(2)),
-                        backgroundColor: topTaxa.map(d => d.status === 'Novel' ? 'rgba(255, 99, 132, 0.7)' : 'rgba(54, 162, 235, 0.7)'),
-                        borderColor: topTaxa.map(d => d.status === 'Novel' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)'),
+                        backgroundColor: topTaxa.map(d => d.status === 'Novel' ? 'rgba(249, 115, 22, 0.7)' : 'rgba(34, 197, 94, 0.7)'),
+                        borderColor: topTaxa.map(d => d.status === 'Novel' ? 'rgb(249, 115, 22)' : 'rgb(34, 197, 94)'),
                         borderWidth: 1
                     }]
                 },
                 options: {
+                    responsive: true,
                     scales: {
                         y: { beginAtZero: true, title: { display: true, text: 'Percentage (%)' } }
                     },
                     plugins: {
                         tooltip: {
                             callbacks: {
-                                label: (context) => `${context.label}: ${context.raw}% (${topTaxa[context.dataIndex].abundance} reads)`
+                                label: (context) => `${context.raw}% (${topTaxa[context.dataIndex].abundance} reads)`
                             }
                         }
                     }
                 }
             });
-            
-            // Update image sources
-            document.getElementById('latent-space-plot').src = "/plots/latent_space_clusters.png";
-            document.getElementById('kmer-heatmap-plot').src = "/plots/kmer_heatmap.png";
+
+            // Update image sources with cache-busting
+            const timestamp = new Date().getTime();
+            document.getElementById('latent-space-plot').src = `/plots/latent_space_clusters.png?t=${timestamp}`;
+            document.getElementById('kmer-heatmap-plot').src = `/plots/kmer_heatmap.png?t=${timestamp}`;
         }
 
-        document.getElementById('file-upload').addEventListener('change', startAnalysis);
-
-        // Restart simulation button
+        // Restart button
         document.getElementById('restart-btn').addEventListener('click', function () {
             clearDashboard();
+            selectedFile = null;
+            useSample = false;
+            document.getElementById('file-upload').value = '';
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('start-analysis-btn').classList.add('hidden');
             document.getElementById('results-section').classList.add('hidden');
             document.getElementById('progress-section').classList.add('hidden');
             document.getElementById('upload-section').classList.remove('hidden');
@@ -256,4 +413,5 @@
 
     </script>
 </body>
+
 </html>

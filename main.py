@@ -8,12 +8,13 @@ to assess biodiversity without relying on incomplete external databases. The app
 Variational Autoencoders (VAE) and unsupervised clustering to identify both known and novel taxa.
 
 Key Components:
-1. Mock eDNA data generation (simulates bioinformatics preprocessing output)
+1. FASTA file parsing for real sequence data
 2. k-mer vectorization for numerical representation of sequences
 3. Variational Autoencoder for learning genetic structure embeddings
 4. DBSCAN clustering for taxonomic classification
 5. Biodiversity metrics calculation
-6. Structured JSON output
+6. Visualization generation (latent space plot, k-mer heatmap)
+7. Structured JSON output
 
 Author: AI-Driven Biodiversity Assessment Team
 Date: 2025
@@ -24,10 +25,12 @@ import pandas as pd
 import json
 import random
 import string
+import os
 from collections import Counter
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -38,6 +41,17 @@ warnings.filterwarnings('ignore')
 np.random.seed(42)
 tf.random.set_seed(42)
 random.seed(42)
+
+# Try to import matplotlib for visualizations
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    print("Warning: matplotlib/seaborn not available. Visualizations will be skipped.")
 
 class VAE(keras.Model):
     """
@@ -107,24 +121,105 @@ class eDNABiodiversityPipeline:
     AI-based analysis to biodiversity metrics calculation.
     """
     
-    def __init__(self, n_sequences=20000, sequence_length=200, k=4):
+    def __init__(self, n_sequences=20000, sequence_length=200, k=4, plots_dir=None):
         """
         Initialize the pipeline with key parameters.
         
         Args:
-            n_sequences (int): Number of mock eDNA sequences to generate
+            n_sequences (int): Number of mock eDNA sequences to generate (if no file provided)
             sequence_length (int): Length of each DNA sequence
             k (int): k-mer length for sequence vectorization
+            plots_dir (str): Directory to save visualization plots
         """
         self.n_sequences = n_sequences
         self.sequence_length = sequence_length
         self.k = k
         self.sequences = None
+        self.sequence_ids = None
         self.kmer_vectors = None
         self.vae_model = None
         self.embeddings = None
         self.clusters = None
         self.results = {}
+        self.plots_dir = plots_dir
+        
+    def parse_fasta_file(self, filepath):
+        """
+        Parse a FASTA file and extract sequences.
+        
+        Args:
+            filepath (str): Path to the FASTA file
+            
+        Returns:
+            tuple: (list of sequences, list of sequence IDs)
+        """
+        print(f"Parsing FASTA file: {filepath}")
+        
+        sequences = []
+        sequence_ids = []
+        current_sequence = ""
+        current_id = ""
+        
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('>'):
+                    # Save previous sequence if exists
+                    if current_sequence:
+                        sequences.append(current_sequence.upper())
+                        sequence_ids.append(current_id)
+                    # Start new sequence
+                    current_id = line[1:]  # Remove '>' prefix
+                    current_sequence = ""
+                else:
+                    current_sequence += line
+            
+            # Don't forget the last sequence
+            if current_sequence:
+                sequences.append(current_sequence.upper())
+                sequence_ids.append(current_id)
+        
+        print(f"Parsed {len(sequences)} sequences from FASTA file")
+        self.sequences = sequences
+        self.sequence_ids = sequence_ids
+        return sequences, sequence_ids
+    
+    def parse_fasta_content(self, content):
+        """
+        Parse FASTA content from a string.
+        
+        Args:
+            content (str): FASTA file content as string
+            
+        Returns:
+            tuple: (list of sequences, list of sequence IDs)
+        """
+        print("Parsing FASTA content...")
+        
+        sequences = []
+        sequence_ids = []
+        current_sequence = ""
+        current_id = ""
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if line.startswith('>'):
+                if current_sequence:
+                    sequences.append(current_sequence.upper())
+                    sequence_ids.append(current_id)
+                current_id = line[1:]
+                current_sequence = ""
+            elif line:
+                current_sequence += line
+        
+        if current_sequence:
+            sequences.append(current_sequence.upper())
+            sequence_ids.append(current_id)
+        
+        print(f"Parsed {len(sequences)} sequences from FASTA content")
+        self.sequences = sequences
+        self.sequence_ids = sequence_ids
+        return sequences, sequence_ids
         
     def generate_mock_edna_sequences(self):
         """
@@ -142,6 +237,7 @@ class eDNABiodiversityPipeline:
         print("Generating mock eDNA sequences...")
         
         sequences = []
+        sequence_ids = []
         bases = ['A', 'T', 'G', 'C']
         
         # Create some "template" sequences to simulate related taxa
@@ -155,7 +251,8 @@ class eDNABiodiversityPipeline:
         for i in range(self.n_sequences):
             if i < self.n_sequences * 0.7:  # 70% of sequences are variations of templates
                 # Select a random template and introduce mutations
-                base_template = random.choice(templates)
+                template_idx = i % len(templates)
+                base_template = templates[template_idx]
                 sequence = list(base_template)
                 
                 # Introduce random mutations (5-15% of positions)
@@ -168,11 +265,14 @@ class eDNABiodiversityPipeline:
                     sequence[pos] = np.random.choice(bases)
                 
                 sequences.append(''.join(sequence))
+                sequence_ids.append(f"Mock_Seq_{i+1}_Template_{template_idx}")
             else:  # 30% completely random (novel/distant taxa)
                 sequence = ''.join(np.random.choice(bases, size=self.sequence_length))
                 sequences.append(sequence)
+                sequence_ids.append(f"Mock_Seq_{i+1}_Novel")
         
         self.sequences = sequences
+        self.sequence_ids = sequence_ids
         print(f"Generated {len(sequences)} mock eDNA sequences of length {self.sequence_length}")
         return sequences
     
@@ -197,6 +297,7 @@ class eDNABiodiversityPipeline:
         from itertools import product
         all_kmers = [''.join(p) for p in product(bases, repeat=self.k)]
         kmer_to_index = {kmer: i for i, kmer in enumerate(all_kmers)}
+        self.all_kmers = all_kmers
         
         # Initialize k-mer count matrix
         kmer_matrix = np.zeros((len(sequences), len(all_kmers)))
@@ -216,6 +317,7 @@ class eDNABiodiversityPipeline:
                     if kmer in kmer_to_index:
                         kmer_matrix[seq_idx, kmer_to_index[kmer]] = count / total_kmers
         
+        self.kmer_vectors = kmer_matrix
         print(f"Created k-mer matrix of shape {kmer_matrix.shape}")
         return kmer_matrix
     
@@ -304,13 +406,110 @@ class eDNABiodiversityPipeline:
         print(f"  - Number of noise points (potential novel taxa): {n_noise}")
         
         if n_clusters > 1:
-            silhouette = silhouette_score(embeddings_scaled, cluster_labels)
-            print(f"  - Silhouette score: {silhouette:.4f}")
+            # Only calculate silhouette for non-noise points
+            mask = cluster_labels != -1
+            if mask.sum() > 1 and len(set(cluster_labels[mask])) > 1:
+                silhouette = silhouette_score(embeddings_scaled[mask], cluster_labels[mask])
+                print(f"  - Silhouette score: {silhouette:.4f}")
         else:
             print("  - Silhouette score: N/A (requires more than one cluster)")
         
         self.clusters = cluster_labels
         return cluster_labels
+    
+    def generate_visualizations(self, embeddings, cluster_labels):
+        """
+        Generate visualization plots for the analysis results.
+        
+        Creates:
+        1. Latent space cluster plot (2D PCA projection of VAE embeddings)
+        2. K-mer frequency heatmap
+        
+        Args:
+            embeddings (numpy.ndarray): VAE embeddings
+            cluster_labels (numpy.ndarray): Cluster assignments
+        """
+        if not MATPLOTLIB_AVAILABLE:
+            print("Skipping visualizations - matplotlib not available")
+            return
+        
+        if self.plots_dir is None:
+            print("Skipping visualizations - no plots directory specified")
+            return
+            
+        print("Generating visualizations...")
+        
+        # Ensure plots directory exists
+        os.makedirs(self.plots_dir, exist_ok=True)
+        
+        # 1. Latent Space Cluster Plot
+        try:
+            plt.figure(figsize=(10, 8))
+            
+            # Use PCA to reduce to 2D for visualization
+            pca = PCA(n_components=2)
+            embeddings_2d = pca.fit_transform(embeddings)
+            
+            # Create color palette
+            unique_clusters = sorted(set(cluster_labels))
+            n_colors = len(unique_clusters)
+            colors = plt.cm.tab20(np.linspace(0, 1, max(n_colors, 2)))
+            
+            for i, cluster_id in enumerate(unique_clusters):
+                mask = cluster_labels == cluster_id
+                label = f"Novel/Noise" if cluster_id == -1 else f"Cluster {cluster_id}"
+                color = 'gray' if cluster_id == -1 else colors[i % len(colors)]
+                alpha = 0.3 if cluster_id == -1 else 0.7
+                plt.scatter(embeddings_2d[mask, 0], embeddings_2d[mask, 1], 
+                           c=[color], label=label, alpha=alpha, s=30)
+            
+            plt.xlabel('PC1')
+            plt.ylabel('PC2')
+            plt.title('VAE Latent Space - Taxonomic Clusters')
+            plt.legend(loc='best', fontsize=8)
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.plots_dir, 'latent_space_clusters.png'), dpi=150)
+            plt.close()
+            print("  - Saved latent space plot")
+        except Exception as e:
+            print(f"  - Error generating latent space plot: {e}")
+        
+        # 2. K-mer Heatmap (top sequences and k-mers)
+        try:
+            plt.figure(figsize=(12, 8))
+            
+            # Select subset for visualization
+            n_samples = min(50, len(self.kmer_vectors))
+            n_kmers = min(30, self.kmer_vectors.shape[1])
+            
+            # Get most variable k-mers
+            kmer_variance = np.var(self.kmer_vectors, axis=0)
+            top_kmer_indices = np.argsort(kmer_variance)[-n_kmers:]
+            
+            # Get sample of sequences (stratified by cluster if possible)
+            sample_indices = np.random.choice(len(self.kmer_vectors), size=n_samples, replace=False)
+            
+            # Create heatmap data
+            heatmap_data = self.kmer_vectors[sample_indices][:, top_kmer_indices]
+            
+            # Get k-mer labels
+            kmer_labels = [self.all_kmers[i] for i in top_kmer_indices]
+            
+            sns.heatmap(heatmap_data, 
+                       xticklabels=kmer_labels, 
+                       yticklabels=False,
+                       cmap='viridis',
+                       cbar_kws={'label': 'Frequency'})
+            
+            plt.xlabel('K-mers')
+            plt.ylabel('Sequences')
+            plt.title('K-mer Frequency Heatmap (Top Variable K-mers)')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.plots_dir, 'kmer_heatmap.png'), dpi=150)
+            plt.close()
+            print("  - Saved k-mer heatmap")
+        except Exception as e:
+            print(f"  - Error generating k-mer heatmap: {e}")
     
     def analyze_biodiversity(self, cluster_labels):
         """
@@ -336,14 +535,15 @@ class eDNABiodiversityPipeline:
         taxa_list = []
         cluster_counts = Counter(cluster_labels)
         
-        # Create mock classifications for identified taxa
-        mock_classifications = [
-            "Eukaryota; Protista; Ciliophora", "Eukaryota; Metazoa; Chordata; Fish",
-            "Eukaryota; Metazoa; Echinodermata", "Eukaryota; Metazoa; Mollusca",
-            "Eukaryota; Cnidaria; Hydrozoa", "Eukaryota; Metazoa; Annelida",
-            "Eukaryota; Porifera; Demospongiae", "Eukaryota; Arthropoda; Crustacea",
-            "Eukaryota; Nematoda; Secernentea", "Eukaryota; Fungi; Ascomycota"
-        ]
+        # Extract taxonomic hints from sequence IDs if available
+        def extract_taxon_hint(seq_id):
+            """Try to extract taxonomic info from sequence ID."""
+            parts = seq_id.split('_')
+            for i, part in enumerate(parts):
+                if part in ['Chordata', 'Echinodermata', 'Mollusca', 'Cnidaria', 
+                           'Crustacea', 'Porifera', 'Annelida', 'Protista', 'Novel']:
+                    return '_'.join(parts[i:i+2]) if i+1 < len(parts) else part
+            return None
         
         # Process regular clusters (identified taxa)
         for cluster_id in sorted(unique_clusters):
@@ -353,15 +553,22 @@ class eDNABiodiversityPipeline:
                 # Noise points are handled as novel taxa
                 continue
             
-            # Simulate taxonomic assignment with mock confidence
-            classification = random.choice(mock_classifications)
+            # Try to get taxonomic hint from sequence IDs in this cluster
+            cluster_seqs = [self.sequence_ids[i] for i, c in enumerate(cluster_labels) if c == cluster_id]
+            taxon_hints = [extract_taxon_hint(s) for s in cluster_seqs if extract_taxon_hint(s)]
+            
+            if taxon_hints:
+                most_common_taxon = Counter(taxon_hints).most_common(1)[0][0]
+                taxon_name = f"{most_common_taxon}_cluster_{cluster_id}"
+            else:
+                taxon_name = f"OTU_cluster_{cluster_id}"
             
             taxon = {
                 'cluster_id': int(cluster_id),
                 'abundance': int(count),
                 'status': 'Identified',
                 'confidence': round(random.uniform(0.6, 0.95), 3),
-                'taxon_name': f'{classification.split(";")[-1]}_cluster_{cluster_id}',
+                'taxon_name': taxon_name,
                 'taxonomic_level': 'Species' if random.random() > 0.3 else 'Genus'
             }
             taxa_list.append(taxon)
@@ -369,18 +576,35 @@ class eDNABiodiversityPipeline:
         # Process noise points (novel taxa)
         n_noise = cluster_counts.get(-1, 0)
         if n_noise > 0:
-            for i in range(max(1, n_noise // 50)): # Group noise points into several novel taxa
-                sequences_in_taxon = max(1, n_noise // max(1, n_noise // 50))
-                
-                taxon = {
-                    'cluster_id': f'Novel_{i+1}',
-                    'abundance': int(sequences_in_taxon),
-                    'status': 'Novel',
-                    'confidence': 0.0,
-                    'taxon_name': f'Novel_taxon_{i+1}',
-                    'taxonomic_level': 'Unknown'
-                }
-                taxa_list.append(taxon)
+            # Group noise points based on sequence ID patterns
+            noise_seqs = [(i, self.sequence_ids[i]) for i, c in enumerate(cluster_labels) if c == -1]
+            
+            if len(noise_seqs) <= 10:
+                # Each noise point is its own novel taxon
+                for i, (idx, seq_id) in enumerate(noise_seqs):
+                    taxon = {
+                        'cluster_id': f'Novel_{i+1}',
+                        'abundance': 1,
+                        'status': 'Novel',
+                        'confidence': 0.0,
+                        'taxon_name': f'Novel_{seq_id[:30]}' if len(seq_id) > 30 else f'Novel_{seq_id}',
+                        'taxonomic_level': 'Unknown'
+                    }
+                    taxa_list.append(taxon)
+            else:
+                # Group into several novel taxa
+                n_groups = max(1, n_noise // 20)
+                for i in range(n_groups):
+                    sequences_in_taxon = n_noise // n_groups + (1 if i < n_noise % n_groups else 0)
+                    taxon = {
+                        'cluster_id': f'Novel_{i+1}',
+                        'abundance': int(sequences_in_taxon),
+                        'status': 'Novel',
+                        'confidence': 0.0,
+                        'taxon_name': f'Novel_taxon_group_{i+1}',
+                        'taxonomic_level': 'Unknown'
+                    }
+                    taxa_list.append(taxon)
 
         # Calculate biodiversity metrics
         abundances = [taxon['abundance'] for taxon in taxa_list]
@@ -440,12 +664,16 @@ class eDNABiodiversityPipeline:
         
         return results
     
-    def run_full_pipeline(self):
+    def run_full_pipeline(self, fasta_file=None, fasta_content=None):
         """
         Execute the complete AI-driven biodiversity assessment pipeline.
         
         This orchestrates all steps from data generation through final analysis,
         simulating a real-world application for deep-sea eDNA biodiversity assessment.
+        
+        Args:
+            fasta_file (str): Path to FASTA file (optional)
+            fasta_content (str): FASTA content as string (optional)
         
         Returns:
             dict: Complete analysis results in JSON format
@@ -455,15 +683,20 @@ class eDNABiodiversityPipeline:
         print("="*60)
         print()
         
-        # Step 1: Generate mock eDNA data
-        print("STEP 1: Data Generation and Preprocessing")
+        # Step 1: Get sequence data
+        print("STEP 1: Data Acquisition")
         print("-" * 40)
-        sequences = self.generate_mock_edna_sequences()
+        if fasta_file:
+            self.parse_fasta_file(fasta_file)
+        elif fasta_content:
+            self.parse_fasta_content(fasta_content)
+        else:
+            self.generate_mock_edna_sequences()
         
         # Step 2: Convert to numerical representation
         print("\nSTEP 2: Sequence Vectorization")
         print("-" * 40)
-        self.kmer_vectors = self.sequences_to_kmers(sequences)
+        self.kmer_vectors = self.sequences_to_kmers(self.sequences)
         
         # Step 3: Train VAE for embedding learning
         print("\nSTEP 3: Variational Autoencoder Training")
@@ -475,8 +708,13 @@ class eDNABiodiversityPipeline:
         print("-" * 40)
         cluster_labels = self.cluster_embeddings(embeddings)
         
-        # Step 5: Analyze biodiversity
-        print("\nSTEP 5: Biodiversity Assessment")
+        # Step 5: Generate visualizations
+        print("\nSTEP 5: Generating Visualizations")
+        print("-" * 40)
+        self.generate_visualizations(embeddings, cluster_labels)
+        
+        # Step 6: Analyze biodiversity
+        print("\nSTEP 6: Biodiversity Assessment")
         print("-" * 40)
         results = self.analyze_biodiversity(cluster_labels)
         
@@ -496,19 +734,24 @@ def main():
     deep-sea biodiversity study, albeit with mock data and simplified parameters.
     """
     
+    # Check if sample.fasta exists
+    sample_fasta = os.path.join(os.path.dirname(__file__), 'sample.fasta')
+    
     # Initialize the pipeline
-    # In production, these parameters would be optimized based on:
-    # - Available computational resources
-    # - Sequencing depth and quality
-    # - Target taxonomic resolution
     pipeline = eDNABiodiversityPipeline(
-        n_sequences=20000,  # Number of eDNA sequences
-        sequence_length=200,  # Base pairs per sequence
-        k=4  # k-mer size for vectorization
+        n_sequences=2000,  # Fallback if no file
+        sequence_length=200,
+        k=4,
+        plots_dir=os.path.join(os.path.dirname(__file__), 'plots')
     )
     
-    # Execute the complete pipeline
-    results = pipeline.run_full_pipeline()
+    # Execute the pipeline
+    if os.path.exists(sample_fasta) and os.path.getsize(sample_fasta) > 0:
+        print("Using sample.fasta file...")
+        results = pipeline.run_full_pipeline(fasta_file=sample_fasta)
+    else:
+        print("No FASTA file found, using mock data...")
+        results = pipeline.run_full_pipeline()
     
     # Output results as formatted JSON
     print("\n" + "="*60)
@@ -524,13 +767,6 @@ def main():
     print(f"• Shannon diversity index of {results['biodiversity_metrics']['shannon_diversity_index']:.4f} indicates {'high' if results['biodiversity_metrics']['shannon_diversity_index'] > 2.0 else 'moderate'} biodiversity")
     print(f"• {results['taxonomic_summary']['noise_points']} sequences didn't cluster, suggesting unique/rare taxa")
     print(f"• Pipeline processed {results['pipeline_info']['total_sequences_analyzed']:,} sequences successfully")
-    
-    print("\nNOTE: This demonstration uses mock data. In production:")
-    print("- Use actual eDNA sequencing data (FASTQ/FASTA files)")
-    print("- Implement quality control and denoising steps")
-    print("- Scale VAE architecture for larger datasets")
-    print("- Optimize hyperparameters through cross-validation")
-    print("- Validate results through phylogenetic analysis")
 
 if __name__ == "__main__":
     main()
