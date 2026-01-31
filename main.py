@@ -35,6 +35,11 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import warnings
+import os
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend suitable for servers
+import matplotlib.pyplot as plt
+import seaborn as sns
 warnings.filterwarnings('ignore')
 
 # Set random seeds for reproducibility
@@ -141,6 +146,7 @@ class eDNABiodiversityPipeline:
         self.embeddings = None
         self.clusters = None
         self.results = {}
+<<<<<<< HEAD
         self.plots_dir = plots_dir
         
     def parse_fasta_file(self, filepath):
@@ -220,6 +226,11 @@ class eDNABiodiversityPipeline:
         self.sequences = sequences
         self.sequence_ids = sequence_ids
         return sequences, sequence_ids
+=======
+        # Ensure plots directory exists (aligned with Flask app's /plots route)
+        self.plots_dir = os.path.join(os.path.dirname(__file__), 'plots')
+        os.makedirs(self.plots_dir, exist_ok=True)
+>>>>>>> 1fe0186f2ed4dca75f400ae80f162e07149e7cb4
         
     def generate_mock_edna_sequences(self):
         """
@@ -719,12 +730,96 @@ class eDNABiodiversityPipeline:
         results = self.analyze_biodiversity(cluster_labels)
         
         self.results = results
+        # Generate and save visualization images expected by the frontend
+        try:
+            self._save_visualizations()
+        except Exception as plot_err:
+            # Do not fail the whole pipeline if plotting fails; just log
+            print(f"Visualization generation failed: {plot_err}")
         
         print("\n" + "="*60)
         print("PIPELINE EXECUTION COMPLETED")
         print("="*60)
         
         return results
+
+    def _save_visualizations(self):
+        """
+        Create and save visualization images used by the frontend dashboard.
+        - latent_space_clusters.png: 2D projection of embeddings colored by cluster
+        - kmer_heatmap.png: Heatmap of mean k-mer frequencies per cluster (top features)
+        """
+        if self.embeddings is None or self.clusters is None or self.kmer_vectors is None:
+            raise ValueError("Required data not available to generate visualizations.")
+
+        # 1) Latent space clusters: reduce to 2D if needed (PCA) and color by cluster
+        from sklearn.decomposition import PCA
+
+        embeddings_array = np.asarray(self.embeddings)
+        if embeddings_array.shape[1] > 2:
+            pca = PCA(n_components=2, random_state=42)
+            emb_2d = pca.fit_transform(embeddings_array)
+        else:
+            emb_2d = embeddings_array[:, :2]
+
+        plt.figure(figsize=(8, 6))
+        unique_labels = sorted(set(self.clusters))
+        palette = sns.color_palette('tab10', n_colors=max(10, len(unique_labels)))
+        label_to_color = {lab: palette[idx % len(palette)] for idx, lab in enumerate(unique_labels)}
+        for lab in unique_labels:
+            mask = (self.clusters == lab)
+            label_name = 'Noise' if lab == -1 else f'Cluster {lab}'
+            plt.scatter(emb_2d[mask, 0], emb_2d[mask, 1], s=6, alpha=0.7, label=label_name, c=[label_to_color[lab]])
+        plt.title('VAE Latent Space Clusters (PCA 2D)')
+        plt.xlabel('PC1')
+        plt.ylabel('PC2')
+        # Limit legend size for many clusters
+        if len(unique_labels) <= 10:
+            plt.legend(markerscale=3, fontsize=8, frameon=False)
+        plt.tight_layout()
+        latent_path = os.path.join(self.plots_dir, 'latent_space_clusters.png')
+        plt.savefig(latent_path, dpi=150)
+        plt.close()
+
+        # 2) K-mer heatmap: compute mean k-mer frequency per cluster for top features
+        kmer_matrix = np.asarray(self.kmer_vectors)
+        cluster_labels = np.asarray(self.clusters)
+        # Exclude noise for mean calculation but keep if all are noise
+        valid_mask = cluster_labels != -1
+        if valid_mask.any():
+            clusters_for_stats = np.unique(cluster_labels[valid_mask])
+        else:
+            clusters_for_stats = np.unique(cluster_labels)
+
+        means_by_cluster = []
+        row_labels = []
+        for lab in clusters_for_stats:
+            mask = (cluster_labels == lab)
+            if not mask.any():
+                continue
+            means_by_cluster.append(kmer_matrix[mask].mean(axis=0))
+            row_labels.append(f'C{lab}')
+        if not means_by_cluster:
+            # Fallback: overall mean
+            means_by_cluster.append(kmer_matrix.mean(axis=0))
+            row_labels.append('All')
+
+        means = np.vstack(means_by_cluster)
+        # Pick top features by variance across clusters to make heatmap informative
+        variances = means.var(axis=0)
+        top_k = min(50, means.shape[1])
+        top_idx = np.argsort(variances)[-top_k:]
+        means_top = means[:, top_idx]
+
+        plt.figure(figsize=(max(8, top_k * 0.25), 6))
+        sns.heatmap(means_top, cmap='viridis', cbar_kws={'label': 'Mean k-mer freq'})
+        plt.yticks(np.arange(len(row_labels)) + 0.5, row_labels, rotation=0)
+        plt.xticks([])  # Too many features to label cleanly
+        plt.title('K-mer Frequency Heatmap (cluster means, top-variable features)')
+        plt.tight_layout()
+        heatmap_path = os.path.join(self.plots_dir, 'kmer_heatmap.png')
+        plt.savefig(heatmap_path, dpi=150)
+        plt.close()
 
 def main():
     """
